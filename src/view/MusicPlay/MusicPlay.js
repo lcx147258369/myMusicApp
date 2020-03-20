@@ -19,7 +19,7 @@ import Icon from 'react-native-vector-icons/Feather'
 import color from '../../unit/color.js'
 import { deviceW, deviceH } from '../../unit/unit'
 import { connect } from 'react-redux'
-import { MUSIC_DETAILS } from '../../api/index'
+import { MUSIC_DETAILS, MUSIC_LYRIC } from '../../api/index'
 import { setPlayId, setPlayMusic } from '../../redux/actions';
 import Player from './Player'
 import { transTime } from '../../unit/unit'
@@ -33,6 +33,10 @@ class MusicPlay extends PureComponent  {
        super();
        this.state = {
            details: {},      // 歌曲详情
+           showLyric: false,  // 是否显示歌词
+           lyric: '',          
+           lyricArr: [],       // 歌词数组
+           lyricScroll: 0      // 初始歌词的滚动条位置
        }
        this.animatedValue = new Animated.Value(0);
        this.animatedTop = new Animated.Value(0);
@@ -44,6 +48,33 @@ class MusicPlay extends PureComponent  {
         // const id = navigation.getParam('id')
         const { currentPlayId, dispatch } = this.props
         this.getMusicDetails(currentPlayId)
+        this.getMusicLyric(currentPlayId)
+   }
+
+   componentWillReceiveProps(nextProps) {
+       const { currentPlay} = this.props;
+       const nextCurrentPlay = nextProps.currentPlay;
+       const { lyric, lyricArr } = this.state;
+       // 判断歌曲的播放时间来确定当前歌词的显示
+       if (currentPlay.currentTime !== nextCurrentPlay.currentTime) {
+           if (lyric) {
+                const currentLrc = lyric.match(new RegExp(`\\[${nextCurrentPlay.currentTime}\\.\\d+\\].*`, 'g'));  // 通过当前时间查找对应的歌词
+                if (currentLrc) {
+                    this.setState({
+                        currentLrc: currentLrc[0]
+                    })
+                    this.setState({
+                        lyricScroll: this.state.lyricScroll += 25,
+                    },() => {
+                        this.lyricScroll && this.lyricScroll.scrollTo({
+                            x: 0,
+                            y: lyricArr.findIndex(v => v === currentLrc[0]) * 25,
+                            animated: true
+                        })
+                    })
+                }
+           }
+       }
    }
 
    // 获取music详情
@@ -63,8 +94,36 @@ class MusicPlay extends PureComponent  {
        }
    }
 
+
+   // 获取歌词
+   getMusicLyric = id => {
+       try {
+        (
+           async () => {
+               const res = await fetch(MUSIC_LYRIC + id);
+               const lyric = (await res.json()).lrc.lyric;
+               const lyricArr = lyric.split(/\n/);
+               this.setState({
+                   lyric,
+                   lyricArr
+               })
+           } 
+        )()
+       } catch (err) {
+         alert(err)
+       }
+   }
+
+   // 控制是否显示歌词
+   handleShowLyric = () => {
+       this.setState({
+           showLyric: !this.state.showLyric
+       })
+   }
+
    // 手动控制进度条控制
    handleSliderChange = value => {
+       console.log(value)
        const { currentPlay, dispatch } = this.props;
        dispatch(setPlayMusic({
            sliderProgress: value,
@@ -89,9 +148,26 @@ class MusicPlay extends PureComponent  {
 
    // 歌词渲染模块
    renderLyric = () => (
-     <View>
-         <ScrollView>
-            <Text style={{color: '#000000'}}>累了</Text>
+     <View style={styles.cdContainer}>
+         <ScrollView 
+            style={{width: deviceW}} 
+            contentContainerStyle={{alignItems: 'center', paddingTop: '30%', paddingBottom: '30%'}}
+            ref={lyricScroll => this.lyricScroll = lyricScroll}
+         >
+            {
+                this.state.lyricArr.map((l, i) => (
+                    <Text 
+                        key={i}
+                        style={{
+                            paddingTop: 5,
+                            paddingBottom: 5,
+                            color: (l == this.state.currentLrc ? color.theme : color.white)
+                        }}
+                    >
+                        {l.replace(/\[.*\]/g, '')}
+                    </Text>
+                ))
+            }
          </ScrollView> 
      </View>
    )
@@ -138,7 +214,7 @@ class MusicPlay extends PureComponent  {
       const { details } = this.state
       return (
         <View style={styles.header}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => this.props.navigation.goBack()}>
                 <Icon name="chevron-left" size={28} color={color.white}/>
             </TouchableOpacity>
             <View style={styles.headerTitle}>
@@ -154,13 +230,15 @@ class MusicPlay extends PureComponent  {
 
    render() {
      const { currentPlay } = this.props;
-     const { details } = this.state;
+     const { details, showLyric } = this.state;
      return(
        <View style={styles.container}>
             <Image style={{width: '100%', height: '100%', position: 'absolute', zIndex: 1, opacity: 0.8}}  blurRadius={8} source={{uri: (details.al && details.al.picUrl) + '?params=200y200'}}/>
             <View style={{zIndex: 5, flex: 1}}>
                { this.renderHeader() }
-               { this.renderCD() }
+               <TouchableOpacity onPress={this.handleShowLyric} style={styles.cdContainer}>
+                    { showLyric ? this.renderLyric() : this.renderCD()}
+               </TouchableOpacity>
                <View style={styles.topIconGroup}>
                     <TouchableOpacity>
                         <Icon name="heart" size={24} color={color.white}></Icon>
@@ -231,7 +309,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     height: '100%',
-    backgroundColor: 'transparent'
+    backgroundColor: 'rgba(0, 0, 0, 0.9)'
   },
   header: {
       height: 50,

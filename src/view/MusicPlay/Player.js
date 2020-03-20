@@ -18,9 +18,9 @@ class Player extends PureComponent {
         if (currentPlayId !== nextPlayId) { // 当前的播放id不等于下一个播放的id 获取新的id播放地址
             this.getMusicUrl(nextPlayId)
         }
-        // if (currentPlayId.ff !== nextCurrentPlay.ff) {  // 快进，快退操作
-        //     this.player.seek(nextCurrentPlay.ff)
-        // }
+        if (currentPlay.ff !== nextCurrentPlay.ff) {  // 快进，快退操作
+            this.player.seek(nextCurrentPlay.ff)
+        }
     }
     getMusicUrl = id => {
         try {
@@ -44,7 +44,7 @@ class Player extends PureComponent {
         alert('出错啦')
     }
 
-    // 加载事假触发后执行操作
+    // 加载事件触发后执行操作
     handleLoad = ({duration}) => {
         
         this.props.dispatch(setPlayMusic({
@@ -71,6 +71,9 @@ class Player extends PureComponent {
             musicUrl ?
             (<Video
                 source={{uri: musicUrl}}     // Can be a URL or a local file.
+                ref={(ref) => {
+                    this.player = ref
+                }}
                 rate={1.0}                              // 0 is paused, 1 is normal.
                 volume={1.0}                            // 0 is muted, 1 is normal.
                 muted={false}                           // Mutes the audio entirely.
